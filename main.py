@@ -17,6 +17,15 @@ CARD_FIELDS = [
     "id",
     "name",
     "pos",
+    "dateLastActivity",
+    "due",
+    "closed",
+    "labels",
+]
+LABEL_FIELDS = [
+    'id',
+    'name',
+    'color',
 ]
 
 ALL_FIELDS = []
@@ -33,6 +42,7 @@ def get_cards_from_board(client, board_id, verbose, output_file):
     def verbose_print(*args, **kwargs):
         if verbose:
             print(*args, **kwargs)
+
     # initialise CSV rows
     csv_rows = []
 
@@ -63,6 +73,9 @@ def get_cards_from_board(client, board_id, verbose, output_file):
             verbose_print("CARD","\t"*3,card.name)
             for field in CARD_FIELDS:
                 val = getattr(card,field)
+                # extra processing for labels
+                if field == "labels":
+                    val = [{lf: getattr(label, lf) for lf in LABEL_FIELDS} for label in val]
                 # add card fields to CSV row
                 csv_row["card_{}".format(field)] = val
                 verbose_print("CARD","\t"*4,"{}: {}".format(field, val))
