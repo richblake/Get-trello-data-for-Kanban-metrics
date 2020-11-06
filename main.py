@@ -28,11 +28,6 @@ LABEL_FIELDS = [
     'color',
 ]
 
-ALL_FIELDS = []
-ALL_FIELDS.extend(["board_{}".format(x) for x in BOARD_FIELDS])
-ALL_FIELDS.extend(["board_list_{}".format(x) for x in BOARD_LIST_FIELDS])
-ALL_FIELDS.extend(["card_{}".format(x) for x in CARD_FIELDS])
-
 def list_boards(client):
     all_boards = client.list_boards()
     for board in all_boards:
@@ -82,10 +77,16 @@ def get_cards_from_board(client, board_id, verbose, output_file):
             # add CSV row to CSV row list
             csv_rows.append(csv_row)
 
+    # build CSV field names
+    field_names = []
+    field_names.extend(["board_{}".format(x) for x in BOARD_FIELDS])
+    field_names.extend(["board_list_{}".format(x) for x in BOARD_LIST_FIELDS])
+    field_names.extend(["card_{}".format(x) for x in CARD_FIELDS])
+
     # write CSV rows
     print("Writing CSV output to {}...".format(output_file))
     with open(output_file, "w", newline="") as f:
-        csvfile = csv.DictWriter(f, ALL_FIELDS)
+        csvfile = csv.DictWriter(f, field_names)
         csvfile.writeheader()
         csvfile.writerows(csv_rows)
     print("Done!")
@@ -96,6 +97,7 @@ if __name__ == '__main__':
     parser.add_argument('token', help='Your Trello service token')
     parser.add_argument('board_id', help='ID of board to query (if not supplied, will list all available boards and exit)', nargs="?")
     parser.add_argument('-o', '--output_file', help='File to receive results (default = "output.csv")', nargs="?", default="output.csv")
+    parser.add_argument('--omit_ids', help='Remove ID numbers from output', action="store_true")
     parser.add_argument('-v', '--verbose', help='Display extra information', action="store_true")
     args = parser.parse_args()
 
@@ -105,6 +107,9 @@ if __name__ == '__main__':
         token=args.token,
     )
 
+    if args.omit_ids:
+        for field_list in BOARD_FIELDS, BOARD_LIST_FIELDS, CARD_FIELDS, LABEL_FIELDS:
+            field_list.remove("id")
     board_id = args.board_id
     if not board_id:
         print("No board ID was supplied, listing all available boards...")
