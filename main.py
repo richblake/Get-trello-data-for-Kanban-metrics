@@ -1,6 +1,8 @@
 import argparse
 import csv
+import sys
 from trello import TrelloClient
+from trello.exceptions import ResourceUnavailable
 
 BOARD_FIELDS = [
     "id",
@@ -22,54 +24,66 @@ ALL_FIELDS.extend(["board_{}".format(x) for x in BOARD_FIELDS])
 ALL_FIELDS.extend(["board_list_{}".format(x) for x in BOARD_LIST_FIELDS])
 ALL_FIELDS.extend(["card_{}".format(x) for x in CARD_FIELDS])
 
-def quick_and_dirty_test(client):
+def list_boards(client):
+    all_boards = client.list_boards()
+    for board in all_boards:
+        print("{}: {}".format(board.id, board.name))
+
+def get_cards_from_board(client, board_id, verbose, output_file):
+    def verbose_print(*args, **kwargs):
+        if verbose:
+            print(*args, **kwargs)
     # initialise CSV rows
     csv_rows = []
 
-    # # Working with all boards
-    # all_boards = client.list_boards()
-    # last_board = all_boards[-1]
-    # print("BOARD","\t"*1,last_board.name,":",last_board.id)
+    print("Reading cards from board...")
 
-    # get the dummy board
-    test_board = client.get_board("5fa153fa57a674452896595e")
-    print("BOARD","\t"*1,test_board.name,":",test_board.id)
+    # get the board
+    try:
+        board = client.get_board(board_id)
+    except ResourceUnavailable:
+        return "Error: could not find board with ID: {}".format(board_id)
+
+    verbose_print("BOARD","\t"*1,board.name,":",board.id)
     
     # get its lists
-    board_lists = test_board.list_lists()
+    board_lists = board.list_lists()
     
     # step through lists in board
     for board_list in board_lists:
-        print("LIST","\t"*2,board_list.name,":",board_list.id,"pos=",board_list.pos)
+        verbose_print("LIST","\t"*2,board_list.name,":",board_list.id,"pos=",board_list.pos)
         # step through cards in list
         for card in board_list.list_cards():
             # start building CSV row
             csv_row = {}
             for field in BOARD_FIELDS:
-                csv_row["board_{}".format(field)] = getattr(test_board, field)
+                csv_row["board_{}".format(field)] = getattr(board, field)
             for field in BOARD_LIST_FIELDS:
                 csv_row["board_list_{}".format(field)] = getattr(board_list, field)
-            print("CARD","\t"*3,card.name)
+            verbose_print("CARD","\t"*3,card.name)
             for field in CARD_FIELDS:
                 val = getattr(card,field)
                 # add card fields to CSV row
                 csv_row["card_{}".format(field)] = val
-                print("CARD","\t"*4,"{}: {}".format(field, val))
+                verbose_print("CARD","\t"*4,"{}: {}".format(field, val))
             # add CSV row to CSV row list
             csv_rows.append(csv_row)
 
     # write CSV rows
-    TEST_OUTPUT = "test.csv"
-    with open(TEST_OUTPUT, "w", newline="") as f:
+    print("Writing CSV output to {}...".format(output_file))
+    with open(output_file, "w", newline="") as f:
         csvfile = csv.DictWriter(f, ALL_FIELDS)
         csvfile.writeheader()
         csvfile.writerows(csv_rows)
-    print("CSV output written to {}".format(TEST_OUTPUT))
+    print("Done!")
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('key', help='A Trello API key')
-    parser.add_argument('token', help='A Trello service token')
+    parser = argparse.ArgumentParser(description="Query Trello API for card information")
+    parser.add_argument('key', help='Your Trello API key')
+    parser.add_argument('token', help='Your Trello service token')
+    parser.add_argument('board_id', help='ID of board to query (if not supplied, will list all available boards and exit)', nargs="?")
+    parser.add_argument('-o', '--output_file', help='File to receive results (default = "output.csv")', nargs="?", default="output.csv")
+    parser.add_argument('-v', '--verbose', help='Display extra information', action="store_true")
     args = parser.parse_args()
 
     # set up client
@@ -77,5 +91,15 @@ if __name__ == '__main__':
         api_key=args.key,
         token=args.token,
     )
-    quick_and_dirty_test(client)
-    
+
+    board_id = args.board_id
+    if not board_id:
+        print("No board ID was supplied, listing all available boards...")
+        print()
+        list_boards(client)
+    else:
+        return_code = get_cards_from_board(client, board_id, args.verbose, args.output_file)
+        # if anything other than None was returned from the function, it will be an error string
+        # sys.exit will print it and exit with return code 1 (failure)
+        # otherwise, if None was returned, it will print nothing and exit with code 0 (success)
+        sys.exit(return_code)
