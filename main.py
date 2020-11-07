@@ -22,6 +22,7 @@ CARD_FIELDS = [
     "due",
     "closed",
     "labels",
+    "dateMovedToThisList",
 ]
 LABEL_FIELDS = [
     'id',
@@ -70,13 +71,28 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
                 csv_row["board_list_{}".format(field)] = getattr(board_list, field)
             verbose_print("CARD","\t"*3,card.name)
             for field in CARD_FIELDS:
-                val = getattr(card,field)
+                val = getattr(card, field, None)
                 # extra processing for labels
                 if field == "labels":
                     if val:
                         val = [{lf: getattr(label, lf) for lf in LABEL_FIELDS} for label in val]
                     else:
                         val = []
+                # extra processing for dateMovedToThisList
+                if field == "dateMovedToThisList":
+                    # get card movements
+                    card_movements = card.list_movements()
+                    if card_movements:
+                        # remove movements to other lists
+                        card_movements = [x for x in card_movements if x["destination"]["id"] == board_list.id]
+                        # sort by datetime, newest first
+                        card_movements.sort(key=lambda x: x["datetime"], reverse=True)
+                        # grab newest
+                        val = card_movements[0]["datetime"]
+                    else:
+                        # no movements found, pass through a None
+                        # TODO: can we find date of card creation to go here instead?
+                        val = None
                 # add card fields to CSV row
                 csv_row["card_{}".format(field)] = val
                 verbose_print("CARD","\t"*4,"{}: {}".format(field, val))
@@ -85,9 +101,10 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
             # do we need to dump extra card info?
             if card.id == dump_extra_card_info_for:
                 print("Dumping extra card info for {} ({})".format(card.id, card.name))
-                extra_card_info.append(card.name)
-                extra_card_info.append(card.id)
-                extra_card_info.append(pformat(card.__dict__))
+                extra_card_info.append("Name = " + card.name)
+                extra_card_info.append("ID = " + card.id)
+                extra_card_info.append("Movements = " + pformat(card.list_movements()))
+                extra_card_info.append("Extra card info = " + pformat(card.__dict__))
 
     # build CSV field names
     field_names = []
