@@ -70,7 +70,10 @@ def get_cards_from_board(client, board_id, verbose, output_file):
                 val = getattr(card,field)
                 # extra processing for labels
                 if field == "labels":
-                    val = [{lf: getattr(label, lf) for lf in LABEL_FIELDS} for label in val]
+                    if val:
+                        val = [{lf: getattr(label, lf) for lf in LABEL_FIELDS} for label in val]
+                    else:
+                        val = []
                 # add card fields to CSV row
                 csv_row["card_{}".format(field)] = val
                 verbose_print("CARD","\t"*4,"{}: {}".format(field, val))
