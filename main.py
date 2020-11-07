@@ -1,6 +1,7 @@
 import argparse
 import csv
 import sys
+from pprint import pformat
 from trello import TrelloClient
 from trello.exceptions import ResourceUnavailable
 
@@ -33,13 +34,15 @@ def list_boards(client):
     for board in all_boards:
         print("{}: {}".format(board.id, board.name))
 
-def get_cards_from_board(client, board_id, verbose, output_file):
+def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card_info_for):
     def verbose_print(*args, **kwargs):
         if verbose:
             print(*args, **kwargs)
 
     # initialise CSV rows
     csv_rows = []
+    # initialise extra card info
+    extra_card_info = []
 
     print("Reading cards from board...")
 
@@ -79,6 +82,12 @@ def get_cards_from_board(client, board_id, verbose, output_file):
                 verbose_print("CARD","\t"*4,"{}: {}".format(field, val))
             # add CSV row to CSV row list
             csv_rows.append(csv_row)
+            # do we need to dump extra card info?
+            if card.id == dump_extra_card_info_for:
+                print("Dumping extra card info for {} ({})".format(card.id, card.name))
+                extra_card_info.append(card.name)
+                extra_card_info.append(card.id)
+                extra_card_info.append(pformat(card.__dict__))
 
     # build CSV field names
     field_names = []
@@ -92,6 +101,12 @@ def get_cards_from_board(client, board_id, verbose, output_file):
         csvfile = csv.DictWriter(f, field_names)
         csvfile.writeheader()
         csvfile.writerows(csv_rows)
+
+    # do we need to dump extra card info?
+    if extra_card_info:
+        with open("extra_card_info.txt", "w") as f:
+            f.write("\n".join(extra_card_info))
+
     print("Done!")
 
 if __name__ == '__main__':
@@ -100,6 +115,7 @@ if __name__ == '__main__':
     parser.add_argument('token', help='Your Trello service token')
     parser.add_argument('board_id', help='ID of board to query (if not supplied, will list all available boards and exit)', nargs="?")
     parser.add_argument('-o', '--output_file', help='File to receive results (default = "output.csv")', nargs="?", default="output.csv")
+    parser.add_argument('--dump_extra_card_info_for', metavar='CARD_ID', help='If card with id matching "CARD_ID" is found dump all card fields to "extra_card_info.txt"', default=None)
     parser.add_argument('--omit_ids', help='Remove ID numbers from output', action="store_true")
     parser.add_argument('-v', '--verbose', help='Display extra information', action="store_true")
     args = parser.parse_args()
@@ -119,7 +135,7 @@ if __name__ == '__main__':
         print()
         list_boards(client)
     else:
-        return_code = get_cards_from_board(client, board_id, args.verbose, args.output_file)
+        return_code = get_cards_from_board(client, board_id, args.verbose, args.output_file, args.dump_extra_card_info_for)
         # if anything other than None was returned from the function, it will be an error string
         # sys.exit will print it and exit with return code 1 (failure)
         # otherwise, if None was returned, it will print nothing and exit with code 0 (success)

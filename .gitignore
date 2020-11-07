@@ -131,3 +131,4 @@ dmypy.json
 # testing files
 test.bat
 output.csv
+extra_card_info.txt
