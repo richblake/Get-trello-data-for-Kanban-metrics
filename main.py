@@ -23,6 +23,7 @@ CARD_FIELDS = [
     "closed",
     "labels",
     "dateMovedToThisList",
+    "created_date",
 ]
 LABEL_FIELDS = [
     'id',
@@ -90,9 +91,8 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
                         # grab newest
                         val = card_movements[0]["datetime"]
                     else:
-                        # no movements found, pass through a None
-                        # TODO: can we find date of card creation to go here instead?
-                        val = None
+                        # no movements found, pass through card creation date instead
+                        val = card.created_date
                 # add card fields to CSV row
                 csv_row["card_{}".format(field)] = val
                 verbose_print("CARD","\t"*4,"{}: {}".format(field, val))
@@ -103,6 +103,7 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
                 print("Dumping extra card info for {} ({})".format(card.id, card.name))
                 extra_card_info.append("Name = " + card.name)
                 extra_card_info.append("ID = " + card.id)
+                extra_card_info.append("Created = " + pformat(card.created_date))
                 extra_card_info.append("Movements = " + pformat(card.list_movements()))
                 extra_card_info.append("Extra card info = " + pformat(card.__dict__))
 
