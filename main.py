@@ -23,6 +23,7 @@ CARD_FIELDS = [
     "closed",
     "labels",
     "dateMovedToThisList",
+    "movedFromList",
     "created_date",
 ]
 LABEL_FIELDS = [
@@ -79,25 +80,39 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
                         val = [{lf: getattr(label, lf) for lf in LABEL_FIELDS} for label in val]
                     else:
                         val = []
-                # extra processing for dateMovedToThisList
-                if field == "dateMovedToThisList":
-                    # get card movements
-                    card_movements = card.list_movements()
-                    if card_movements:
-                        # remove movements to other lists
-                        card_movements = [x for x in card_movements if x["destination"]["id"] == board_list.id]
-                        # sort by datetime, newest first
-                        card_movements.sort(key=lambda x: x["datetime"], reverse=True)
-                        # grab newest
-                        val = card_movements[0]["datetime"]
-                    else:
-                        # no movements found, pass through card creation date instead
-                        val = card.created_date
-                # add card fields to CSV row
+                # add card field to CSV row
                 csv_row["card_{}".format(field)] = val
                 verbose_print("CARD","\t"*4,"{}: {}".format(field, val))
-            # add CSV row to CSV row list
-            csv_rows.append(csv_row)
+
+            # get card movements
+            card_movements = card.list_movements()
+            if card_movements:
+                # write multiple rows, one for each movement
+                # sort by datetime, newest first
+                card_movements.sort(key=lambda x: x["datetime"], reverse=True)
+                # make sure latest movement put the card in the current list
+                latest_dest_id = card_movements[0]["destination"]["id"]
+                assert latest_dest_id == board_list.id, "Error: latest movement of card {} shows card in list {}, but card is actually in list {}".format(card.id, latest_dest_id, board_list.id)
+                for move_num, cm in enumerate(card_movements):
+                    csv_row = csv_row.copy()
+                    csv_row["card_dateMovedToThisList"] = cm["datetime"]
+                    csv_row["card_movedFromList"] = cm['source']['name']
+                    if "board_list_id" in csv_row:
+                        # check to make sure IDs are not being omitted
+                        csv_row["board_list_id"] = cm['destination']['id']
+                    csv_row["board_list_name"] = cm['destination']['name']
+                    if move_num != 0:
+                        # can't get pos for previous lists without extra work, but probably not needed, omitting
+                        csv_row["board_list_pos"] = None
+                    verbose_print("CARDMOVE","\t"*4,"{}".format(cm))
+                    # add CSV row to CSV row list for this move
+                    csv_rows.append(csv_row)
+            else:
+                # no movements found, pass through card creation date instead
+                csv_row["card_dateMovedToThisList"] = card.created_date
+                # write single row for this card
+                csv_rows.append(csv_row)
+
             # do we need to dump extra card info?
             if card.id == dump_extra_card_info_for:
                 print("Dumping extra card info for {} ({})".format(card.id, card.name))
