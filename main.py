@@ -35,6 +35,7 @@ LABEL_FIELDS = [
 ]
 
 REGEX_DUE_DATE_FORMAT = re.compile(r"(\d+)-(\d+)-(\d+)T(\d+):(\d+):(\d+).?\d*Z")
+LABELS_TO_SEPARATE = 3
 
 def list_boards(client):
     all_boards = client.list_boards()
@@ -78,12 +79,22 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
             verbose_print("CARD","\t"*3,card.name)
             for field in CARD_FIELDS:
                 val = getattr(card, field, None)
-                # extra processing for labels
+                # special processing for labels
                 if field == "labels":
                     if val:
-                        val = [{lf: getattr(label, lf) for lf in LABEL_FIELDS} for label in val]
-                    else:
-                        val = []
+                        labels_list = [{lf: getattr(label, lf) for lf in LABEL_FIELDS} for label in val]
+                        for i in range(LABELS_TO_SEPARATE):
+                            if labels_list:
+                                label_dict = labels_list.pop(0)
+                                for lf in LABEL_FIELDS:
+                                    output_field = "card_label{}_{}".format(i+1, lf)
+                                    output_val = label_dict[lf]
+                                    csv_row[output_field] = output_val
+                                    verbose_print("CARDLBL","\t"*4,"{}: {}".format(output_field, output_val))
+                        # if any remaining labels, add into card_more_labels column as raw python string
+                        csv_row["card_more_labels"] = labels_list
+                        # finished "labels" processing, skip to next field
+                        continue
                 if field == "due":
                     # rename "due" to "due_date"
                     field = "due_date"
@@ -145,6 +156,15 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
     field_names.extend(["board_{}".format(x) for x in BOARD_FIELDS])
     field_names.extend(["board_list_{}".format(x) for x in BOARD_LIST_FIELDS])
     field_names.extend(["card_{}".format(x) for x in CARD_FIELDS])
+
+    # amend label fields
+    label_column_index = field_names.index("card_labels")
+    field_names.pop(label_column_index)
+    for i in range(LABELS_TO_SEPARATE):
+        for lf in LABEL_FIELDS:
+            field_names.insert(label_column_index, "card_label{}_{}".format(i+1, lf))
+            label_column_index += 1
+    field_names.insert(label_column_index, "card_more_labels")
 
     # post-processing - split datetime fields into date & time fields
     for i, field in enumerate(field_names):
