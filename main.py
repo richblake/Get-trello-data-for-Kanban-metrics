@@ -1,6 +1,8 @@
+import datetime
 import argparse
 import csv
 import sys
+import re
 from pprint import pformat
 from trello import TrelloClient
 from trello.exceptions import ResourceUnavailable
@@ -31,6 +33,8 @@ LABEL_FIELDS = [
     'name',
     'color',
 ]
+
+REGEX_DUE_DATE_FORMAT = re.compile(r"(\d+)-(\d+)-(\d+)T(\d+):(\d+):(\d+).?\d*Z")
 
 def list_boards(client):
     all_boards = client.list_boards()
@@ -80,6 +84,20 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
                         val = [{lf: getattr(label, lf) for lf in LABEL_FIELDS} for label in val]
                     else:
                         val = []
+                if field == "due":
+                    # rename "due" to "due_date"
+                    field = "due_date"
+                    if val:
+                        # due date comes in a string in an unusual format - 2030-01-31T12:25:00.000Z
+                        # hopefully this will remain consistent for users from other time zones...
+                        # use regex matching to pull out the numbers in groups
+                        due_date_match = REGEX_DUE_DATE_FORMAT.match(val)
+                        assert due_date_match, "Error: couldn't match date/time format on card's due date/time field"
+                        date_fields = due_date_match.groups()
+                        # convert the groups to integers
+                        date_fields = map(int, date_fields)
+                        # create datetime object using integers
+                        val = datetime.datetime(*date_fields)
                 # add card field to CSV row
                 csv_row["card_{}".format(field)] = val
                 verbose_print("CARD","\t"*4,"{}: {}".format(field, val))
@@ -127,6 +145,20 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
     field_names.extend(["board_{}".format(x) for x in BOARD_FIELDS])
     field_names.extend(["board_list_{}".format(x) for x in BOARD_LIST_FIELDS])
     field_names.extend(["card_{}".format(x) for x in CARD_FIELDS])
+
+    # post-processing - split datetime fields into date & time fields
+    for i, field in enumerate(field_names):
+        if field == "card_due":
+            field = "card_due_date"
+            field_names[i] = field
+        if "date" in field:
+            time_field = field.replace("date", "time")
+            field_names.insert(i + 1, time_field)
+            for row in csv_rows:
+                dt_value = row[field]
+                if dt_value:
+                    row[field] = dt_value.date()
+                    row[time_field] = dt_value.time()
 
     # write CSV rows
     print("Writing CSV output to {}...".format(output_file))
