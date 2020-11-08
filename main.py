@@ -14,12 +14,10 @@ BOARD_FIELDS = [
 BOARD_LIST_FIELDS = [
     "id",
     "name",
-    "pos",
 ]
 CARD_FIELDS = [
     "id",
     "name",
-    "pos",
     "dateLastActivity",
     "due",
     "closed",
@@ -130,9 +128,6 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
                         # check to make sure IDs are not being omitted
                         csv_row["board_list_id"] = cm['destination']['id']
                     csv_row["board_list_name"] = cm['destination']['name']
-                    if move_num != 0:
-                        # can't get pos for previous lists without extra work, but probably not needed, omitting
-                        csv_row["board_list_pos"] = None
                     verbose_print("CARDMOVE","\t"*4,"{}".format(cm))
                     # add CSV row to CSV row list for this move
                     csv_rows.append(csv_row)
