@@ -91,8 +91,8 @@ def get_cards_from_board(client, board_id, verbose, output_file, dump_extra_card
                                     verbose_print("CARDLBL","\t"*4,"{}: {}".format(output_field, output_val))
                         # if any remaining labels, add into card_more_labels column as raw python string
                         csv_row["card_more_labels"] = labels_list
-                        # finished "labels" processing, skip to next field
-                        continue
+                    # finished "labels" processing, skip to next field
+                    continue
                 if field == "due":
                     # rename "due" to "due_date"
                     field = "due_date"
